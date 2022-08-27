@@ -7,22 +7,30 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScree
 use tui::backend::{Backend, CrosstermBackend};
 use tui::Terminal;
 use crate::ui;
+use crate::ui::manager::UIManager;
 
 pub struct App {
     shutdown: bool,
+    pub score: Score,
+}
+
+pub struct Score {
+    pub score: u32,
+    pub top_score: u32,
 }
 
 impl App {
     fn new() -> App {
         App {
-            shutdown: false
+            shutdown: false,
+            score: Score { score: 0, top_score: 0 },
         }
     }
     fn run<B: Backend>(&mut self, terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<(), Box<dyn Error>> {
         let mut last_tick = Instant::now();
         let tick_rate = Duration::from_millis(250);
         loop {
-            terminal.draw(|f| ui::home::draw(f, self))?;
+            terminal.draw(|f| UIManager::draw(f, self))?;
 
             let timeout = tick_rate
                 .checked_sub(last_tick.elapsed())
@@ -71,7 +79,7 @@ impl App {
 
     fn on_key(&mut self, c: char) {
         match c {
-            'q' => self.shutdown = true,
+            'q' | 'Q' => self.shutdown = true,
             _ => {}
         }
     }
