@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::io::{stdout, Stdout};
 use std::time::{Duration, Instant};
@@ -6,12 +7,21 @@ use crossterm::event::{Event, KeyCode, MouseEventKind, DisableMouseCapture, Enab
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use tui::backend::{Backend, CrosstermBackend};
 use tui::Terminal;
-use crate::ui;
+use crate::runtime::computing;
+use crate::runtime::computing::Computer;
+use crate::runtime::statistics::StatisticsInfo;
+use crate::runtime::tetromino::{Point, Tetromino};
 use crate::ui::manager::UIManager;
 
 pub struct App {
     shutdown: bool,
+    last_refresh: Option<Instant>,
+    refresh_interval: Duration,
     pub score: Score,
+    pub points: Vec<Vec<Point>>,
+    pub active: Option<Tetromino>,
+    pub next: Tetromino,
+    pub statistics: HashMap<Tetromino, StatisticsInfo>,
 }
 
 pub struct Score {
@@ -23,7 +33,13 @@ impl App {
     fn new() -> App {
         App {
             shutdown: false,
+            last_refresh: None,
+            refresh_interval: Duration::from_millis(800),
             score: Score { score: 0, top_score: 0 },
+            points: Vec::new(),
+            active: Some(Tetromino::next_rng()),
+            next: Tetromino::next_rng(),
+            statistics: Default::default(),
         }
     }
     fn run<B: Backend>(&mut self, terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<(), Box<dyn Error>> {
@@ -87,12 +103,33 @@ impl App {
         self.shutdown = true
     }
     fn on_enter(&mut self) {}
-    fn on_left(&mut self) {}
-    fn on_right(&mut self) {}
-    fn on_up(&mut self) {}
-    fn on_down(&mut self) {}
+    fn on_left(&mut self) {
+        computing::move_left(self);
+    }
+    fn on_right(&mut self) {
+        computing::move_right(self);
+    }
+    fn on_up(&mut self) {
+        computing::rotation(self);
+    }
+    fn on_down(&mut self) {
+        computing::step(self);
+        self.last_refresh = Some(Instant::now());
+    }
 
-    fn on_tick(&mut self) {}
+    fn on_tick(&mut self) {
+        let mut need_step = true;
+        if let Some(last_refresh) = self.last_refresh {
+            if !last_refresh.elapsed().ge(&self.refresh_interval) {
+                need_step = false;
+            }
+        }
+
+        if need_step {
+            computing::step(self);
+            self.last_refresh = Some(Instant::now());
+        }
+    }
 
     fn is_shutdown(&self) -> bool {
         self.shutdown
